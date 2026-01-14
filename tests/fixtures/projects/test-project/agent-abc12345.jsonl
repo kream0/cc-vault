@@ -1,0 +1,2 @@
+{"parentUuid":null,"cwd":"/test/project","sessionId":"conv-001","agentId":"abc12345","isSidechain":true,"type":"user","message":{"role":"user","content":"Sub-task from parent"},"uuid":"agent-msg-001","timestamp":"2025-01-10T11:00:00.000Z"}
+{"parentUuid":"agent-msg-001","cwd":"/test/project","sessionId":"conv-001","agentId":"abc12345","isSidechain":true,"type":"assistant","message":{"role":"assistant","content":"Processing sub-task"},"uuid":"agent-msg-002","timestamp":"2025-01-10T11:01:00.000Z"}

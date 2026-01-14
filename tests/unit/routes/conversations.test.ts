@@ -23,7 +23,22 @@ describe("GET /api/projects/:id/conversations", () => {
 
     const data = await res.json();
     expect(Array.isArray(data)).toBe(true);
-    expect(data.length).toBe(2); // conv-001 and conv-002
+    expect(data.length).toBe(2); // conv-001 and conv-002 (agent-abc12345 is filtered)
+  });
+
+  test("filters out agent conversations (agent-*.jsonl)", async () => {
+    const res = await fetch(`${baseUrl}/api/projects/test-project/conversations`);
+    const data = await res.json();
+
+    // Should not include agent-abc12345
+    const agentConv = data.find((c: { id: string }) => c.id.startsWith("agent-"));
+    expect(agentConv).toBeUndefined();
+
+    // Should only have regular conversations
+    const ids = data.map((c: { id: string }) => c.id);
+    expect(ids).toContain("conv-001");
+    expect(ids).toContain("conv-002");
+    expect(ids).not.toContain("agent-abc12345");
   });
 
   test("each conversation has id, filename, and mtime", async () => {

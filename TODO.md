@@ -156,6 +156,39 @@ bun run build
   - Restore files to original paths (with confirmation)
   - UI: "Import Checkpoint" option in checkpoint view
 
+### Filter Agent Conversations
+
+Agent conversations (`agent-<8-char-hex>.jsonl`) are sub-agents spawned by parent conversations via the "Task" tool. They should be filtered from the UI.
+
+**Analysis Findings:**
+
+| Aspect | Agent Conversations | Regular Conversations |
+|--------|---------------------|----------------------|
+| Filename | `agent-<8-char-hex>.jsonl` | `<uuid>.jsonl` |
+| `isSidechain` | `true` | `false` |
+| `agentId` | Present (matches filename) | Not present |
+| `sessionId` | Points to parent UUID | Same as filename |
+| File History | **None** (0 folders) | Yes |
+| Avg Size | ~128KB | ~653KB |
+| Ratio | ~2:1 agents per conversation | - |
+
+**Why Hide Agent Conversations:**
+1. **No restore value** - Agent conversations have zero `file-history-snapshot` entries
+2. **Derived from parent** - Spawned by parent via "Task" tool, changes tracked in parent
+3. **UX clutter** - ~2:1 ratio doubles list size without adding value
+
+**Implementation:**
+
+- [x] **Option A (Implemented)**: Simple filename filter in `src/routes/conversations.ts`
+  ```typescript
+  // Skip agent conversation files (sub-agents spawned via "Task" tool)
+  // These have no file-history-snapshot entries and clutter the UI
+  if (file.startsWith("agent-")) continue;
+  ```
+  - ✅ Fast (no file I/O)
+  - ✅ Accurate (agent files always start with `agent-`)
+  - ✅ Minimal code change
+
 ---
 
 ## Project Structure

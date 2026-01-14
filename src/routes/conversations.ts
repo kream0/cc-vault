@@ -20,6 +20,10 @@ export async function handleGetConversations(
     const conversations: Conversation[] = [];
 
     for (const file of files) {
+      // Skip agent conversation files (sub-agents spawned via "Task" tool)
+      // These have no file-history-snapshot entries and clutter the UI
+      if (file.startsWith("agent-")) continue;
+
       if (file.endsWith(".jsonl")) {
         const filePath = join(projectPath, file);
         const stats = await stat(filePath);
