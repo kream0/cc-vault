@@ -1,0 +1,9 @@
+// Updated index.ts v2
+import { helper } from "./utils";
+
+export function main() {
+  console.log("Hello World");
+  helper();
+}
+
+main();

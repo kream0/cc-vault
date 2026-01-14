@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html class="h-full bg-white">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Claude Restore UI</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <style>
+            [x-cloak] {
+                display: none !important;
+            }
+
+            .file-preview-content {
+                max-height: 70vh;
+                overflow: auto;
+            }
+
+            pre code {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            /* Toast animations */
+            .toast-enter {
+                animation: slideIn 0.3s ease-out;
+            }
+
+            .toast-leave {
+                animation: slideOut 0.3s ease-in forwards;
+            }
+
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+        </style>
+    </head>
+
+    <body class="h-full" x-data="app()">
+
+        <!-- Toast Container -->
+        <div class="fixed top-4 right-4 z-[100] flex flex-col gap-2" aria-live="polite">
+            <template x-for="toast in toasts" :key="toast.id">
+                <div x-show="toast.visible" x-transition:enter="toast-enter" x-transition:leave="toast-leave" :class="{
+                        'bg-green-50 border-green-400': toast.type === 'success',
+                        'bg-red-50 border-red-400': toast.type === 'error',
+                        'bg-blue-50 border-blue-400': toast.type === 'info',
+                        'bg-yellow-50 border-yellow-400': toast.type === 'warning'
+                    }" class="flex items-start gap-3 p-4 rounded-lg border shadow-lg max-w-sm">
+                    <!-- Icon -->
+                    <div class="shrink-0">
+                        <template x-if="toast.type === 'success'">
+                            <svg class="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </template>
+                        <template x-if="toast.type === 'error'">
+                            <svg class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </template>
+                        <template x-if="toast.type === 'info'">
+                            <svg class="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </template>
+                        <template x-if="toast.type === 'warning'">
+                            <svg class="h-5 w-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                                </path>
+                            </svg>
+                        </template>
+                    </div>
+                    <!-- Content -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium" :class="{
+                            'text-green-800': toast.type === 'success',
+                            'text-red-800': toast.type === 'error',
+                            'text-blue-800': toast.type === 'info',
+                            'text-yellow-800': toast.type === 'warning'
+                        }" x-text="toast.message"></p>
+                    </div>
+                    <!-- Close button -->
+                    <button @click="dismissToast(toast.id)" class="shrink-0 text-gray-400 hover:text-gray-600">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </template>
+        </div>
+
+        <div>
+            <!-- Sidebar -->
+            <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+                <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-indigo-600 px-6 pb-4">
+                    <div class="flex h-16 shrink-0 items-center">
+                        <button @click="goHome()"
+                            class="text-white font-bold text-xl hover:text-indigo-200 transition-colors">
+                            Claude Restore
+                        </button>
+                    </div>
+                    <nav class="flex flex-1 flex-col">
+                        <ul role="list" class="flex flex-1 flex-col gap-y-7">
+                            <li>
+                                <div class="text-xs/6 font-semibold text-indigo-200">Projects</div>
+                                <!-- Project Search -->
+                                <div class="mt-2 mb-2">
+                                    <input type="text" x-model="projectSearch" placeholder="Search projects..."
+                                        class="block w-full rounded-md border-0 bg-indigo-500 py-1.5 px-3 text-white placeholder:text-indigo-300 text-sm focus:ring-2 focus:ring-white">
+                                </div>
+                                <ul role="list" class="-mx-2 space-y-1 mt-2 max-h-[calc(100vh-200px)] overflow-y-auto">
+                                    <!-- Grouped projects -->
+                                    <template x-for="(groupProjects, groupName) in groupedProjects" :key="groupName">
+                                        <li>
+                                            <!-- Group header with alias (only show if there's a group name) -->
+                                            <div x-show="groupName"
+                                                class="text-xs text-indigo-300 font-medium px-2 pt-3 pb-1 flex items-center gap-1"
+                                                :title="pathAliases[groupName]">
+                                                <span class="text-indigo-400" x-text="groupName"></span>
+                                            </div>
+                                            <!-- Projects in this group -->
+                                            <ul class="space-y-0.5" :class="groupName ? 'pl-2' : ''">
+                                                <template x-for="project in groupProjects" :key="project.id">
+                                                    <li>
+                                                        <button @click="selectProject(project)"
+                                                            :title="project.fullPath || project.name"
+                                                            :class="selectedProject?.id === project.id ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:text-white hover:bg-indigo-700'"
+                                                            class="group flex w-full gap-x-3 rounded-md p-2 text-sm/6 font-semibold">
+                                                            <span class="truncate" x-text="project.displayPath"></span>
+                                                        </button>
+                                                    </li>
+                                                </template>
+                                            </ul>
+                                        </li>
+                                    </template>
+                                    <!-- Empty state for search -->
+                                    <li x-show="filteredProjects.length === 0 && projectSearch"
+                                        class="text-indigo-300 text-sm p-2">
+                                        No projects match your search
+                                    </li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <div class="lg:pl-72">
+                <!-- Header -->
+                <div
+                    class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
+                    <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 items-center">
+                        <h1 class="text-lg font-semibold text-gray-900" x-text="headerTitle"></h1>
+                    </div>
+                </div>
+
+                <main class="py-10">
+                    <div class="px-4 sm:px-6 lg:px-8">
+
+                        <!-- Home Screen -->
+                        <div x-show="showHome" class="space-y-8">
+                            <!-- Welcome -->
+                            <div class="text-center py-8">
+                                <svg class="mx-auto h-16 w-16 text-indigo-500" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                        d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z">
+                                    </path>
+                                </svg>
+                                <h2 class="mt-4 text-2xl font-bold text-gray-900">Claude Restore UI</h2>
+                                <p class="mt-2 text-gray-600">Browse and restore file history from your Claude
+                                    conversations</p>
+                            </div>
+
+                            <!-- Global Export Section -->
+                            <div class="bg-white shadow sm:rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-base font-semibold leading-6 text-gray-900">Export & Backup</h3>
+                                    <div class="mt-2 max-w-xl text-sm text-gray-500">
+                                        <p>Export your entire Claude data folder for backup or transfer to another
+                                            machine.</p>
+                                    </div>
+                                    <div class="mt-5 flex gap-3">
+                                        <button @click="exportGlobal()" :disabled="exporting"
+                                            class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4">
+                                                </path>
+                                            </svg>
+                                            <span x-text="exporting ? 'Exporting...' : 'Export All Data'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Global Import Section -->
+                            <div class="bg-white shadow sm:rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-base font-semibold leading-6 text-gray-900">Import & Restore</h3>
+                                    <div class="mt-2 max-w-xl text-sm text-gray-500">
+                                        <p>Import a previously exported Claude backup archive to restore your data.</p>
+                                    </div>
+                                    <div class="mt-4">
+                                        <label class="flex items-center gap-2">
+                                            <input type="checkbox" x-model="importMergeMode"
+                                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+                                            <span class="text-sm text-gray-600">Merge mode (skip existing files)</span>
+                                        </label>
+                                    </div>
+                                    <div class="mt-5 flex gap-3">
+                                        <input type="file" accept=".json" @change="handleGlobalImportFile($event)"
+                                            class="hidden" x-ref="globalImportInput">
+                                        <button @click="$refs.globalImportInput.click()" :disabled="importing"
+                                            class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-8l-4-4m0 0L16 8m-4-4v12">
+                                                </path>
+                                            </svg>
+                                            <span x-text="importing ? 'Importing...' : 'Import Backup'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Stats Section -->
+                            <div class="bg-white shadow sm:rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-base font-semibold leading-6 text-gray-900">Overview</h3>
+                                    <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+                                        <div class="overflow-hidden rounded-lg bg-gray-50 px-4 py-5 sm:p-6">
+                                            <dt class="truncate text-sm font-medium text-gray-500">Total Projects</dt>
+                                            <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900"
+                                                x-text="projects.length"></dd>
+                                        </div>
+                                        <div class="overflow-hidden rounded-lg bg-gray-50 px-4 py-5 sm:p-6">
+                                            <dt class="truncate text-sm font-medium text-gray-500">Data Location</dt>
+                                            <dd class="mt-1 text-sm font-mono text-gray-900 truncate" title="~/.claude">
+                                                ~/.claude</dd>
+                                        </div>
+                                        <div class="overflow-hidden rounded-lg bg-gray-50 px-4 py-5 sm:p-6">
+                                            <dt class="truncate text-sm font-medium text-gray-500">Status</dt>
+                                            <dd class="mt-1 flex items-center">
+                                                <span
+                                                    class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                                    <span class="mr-1.5 h-2 w-2 rounded-full bg-green-500"></span>
+                                                    Connected
+                                                </span>
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                </div>
+                            </div>
+
+                            <!-- Getting Started -->
+                            <div class="bg-white shadow sm:rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-base font-semibold leading-6 text-gray-900">Getting Started</h3>
+                                    <div class="mt-4 text-sm text-gray-600 space-y-2">
+                                        <p>1. Select a project from the sidebar to view its conversations</p>
+                                        <p>2. Click on a conversation to see its restore points (checkpoints)</p>
+                                        <p>3. Preview files before restoring, or restore entire checkpoints</p>
+                                        <p>4. Use the export feature to backup your data</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Welcome Screen (when no project selected but not home) -->
+                        <div x-show="!showHome && !selectedProject" class="text-center py-20">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
+                                </path>
+                            </svg>
+                            <h3 class="mt-2 text-sm font-semibold text-gray-900">No project selected</h3>
+                            <p class="mt-1 text-sm text-gray-500">Select a project from the sidebar to view
+                                conversations.</p>
+                            <p x-show="projects.length === 0" class="mt-4 text-sm text-gray-400">No projects found in
+                                ~/.claude/projects</p>
+                        </div>
+
+                        <!-- Conversation List -->
+                        <div x-show="selectedProject && !selectedConversation" class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h2 class="text-base font-semibold leading-7 text-gray-900">Conversations</h2>
+                                <div class="flex gap-2">
+                                    <input type="file" accept=".json" @change="handleConversationImportFile($event)"
+                                        class="hidden" x-ref="conversationImportInput">
+                                    <button @click="$refs.conversationImportInput.click()" :disabled="importing"
+                                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50">
+                                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-8l-4-4m0 0L16 8m-4-4v12">
+                                            </path>
+                                        </svg>
+                                        Import Conversation
+                                    </button>
+                                    <button @click="exportProject()" :disabled="exporting"
+                                        class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50">
+                                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4">
+                                            </path>
+                                        </svg>
+                                        Export Project
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Empty state for conversations -->
+                            <div x-show="conversations.length === 0" class="text-center py-10">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                                    </path>
+                                </svg>
+                                <h3 class="mt-2 text-sm font-semibold text-gray-900">No conversations</h3>
+                                <p class="mt-1 text-sm text-gray-500">This project has no conversation history.</p>
+                            </div>
+
+                            <ul x-show="conversations.length > 0" role="list"
+                                class="divide-y divide-gray-100 overflow-hidden bg-white shadow-sm ring-1 ring-gray-900/5 sm:rounded-xl">
+                                <template x-for="conv in conversations" :key="conv.id">
+                                    <li class="relative flex justify-between gap-x-6 px-4 py-5 hover:bg-gray-50 sm:px-6 cursor-pointer"
+                                        @click="selectConversation(conv)">
+                                        <div class="flex min-w-0 gap-x-4">
+                                            <div class="min-w-0 flex-auto">
+                                                <p class="text-sm font-semibold leading-6 text-gray-900"
+                                                    x-text="conv.id"></p>
+                                                <p
+                                                    class="mt-1 flex items-center flex-wrap gap-x-2 text-xs leading-5 text-gray-500">
+                                                    <span x-text="formatRelativeTime(conv.mtime)"></span>
+                                                    <span>·</span>
+                                                    <span x-text="new Date(conv.mtime).toLocaleString()"
+                                                        class="text-gray-400"></span>
+                                                    <template x-if="conv.gitBranch">
+                                                        <span
+                                                            class="inline-flex items-center rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                                                            <svg class="mr-1 h-3 w-3" fill="none" stroke="currentColor"
+                                                                viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                                    stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z">
+                                                                </path>
+                                                            </svg>
+                                                            <span x-text="conv.gitBranch"></span>
+                                                        </span>
+                                                    </template>
+                                                    <template x-if="conv.filesModified > 0">
+                                                        <span
+                                                            class="inline-flex items-center rounded-md bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                                            <svg class="mr-1 h-3 w-3" fill="none" stroke="currentColor"
+                                                                viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round"
+                                                                    stroke-width="2"
+                                                                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                                                </path>
+                                                            </svg>
+                                                            <span
+                                                                x-text="conv.filesModified + ' file' + (conv.filesModified === 1 ? '' : 's')"></span>
+                                                        </span>
+                                                    </template>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="flex shrink-0 items-center gap-x-4">
+                                            <svg class="h-5 w-5 flex-none text-gray-400" viewBox="0 0 20 20"
+                                                fill="currentColor" aria-hidden="true">
+                                                <path fill-rule="evenodd"
+                                                    d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+                                                    clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+
+                        <!-- Checkpoint List -->
+                        <div x-show="selectedConversation" class="space-y-6">
+                            <div class="flex items-center justify-between">
+                                <button @click="selectedConversation = null; selectedFiles = {}"
+                                    class="text-sm text-indigo-600 hover:text-indigo-900">&larr; Back to
+                                    Conversations</button>
+                                <div class="flex gap-2">
+                                    <input type="file" accept=".json" @change="handleCheckpointImportFile($event)"
+                                        class="hidden" x-ref="checkpointImportInput">
+                                    <button @click="$refs.checkpointImportInput.click()" :disabled="importing"
+                                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50">
+                                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m4-8l-4-4m0 0L16 8m-4-4v12">
+                                            </path>
+                                        </svg>
+                                        Import Checkpoint
+                                    </button>
+                                    <button @click="exportConversation()" :disabled="exporting"
+                                        class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50">
+                                        <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4">
+                                            </path>
+                                        </svg>
+                                        Export Conversation
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="bg-white shadow sm:rounded-lg">
+                                <div class="px-4 py-5 sm:p-6">
+                                    <h3 class="text-base font-semibold leading-6 text-gray-900">Restore Options</h3>
+                                    <div class="mt-2 max-w-xl text-sm text-gray-500">
+                                        <p>Select a checkpoint and optionally choose specific files to restore.</p>
+                                    </div>
+                                    <form class="mt-5 sm:flex sm:items-center" @submit.prevent="">
+                                        <div class="w-full sm:max-w-xs">
+                                            <label for="target-dir" class="sr-only">Target Directory</label>
+                                            <input type="text" x-model="targetDir" id="target-dir"
+                                                class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                                placeholder="Target Directory (optional)">
+                                        </div>
+                                        <p class="mt-2 text-xs text-gray-500 sm:mt-0 sm:ml-4">Default: <span
+                                                x-text="defaultCwd || 'N/A'"></span></p>
+                                    </form>
+                                </div>
+                            </div>
+
+                            <!-- Empty state for checkpoints -->
+                            <div x-show="checkpoints.length === 0"
+                                class="text-center py-10 bg-white shadow sm:rounded-lg">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <h3 class="mt-2 text-sm font-semibold text-gray-900">No restore points</h3>
+                                <p class="mt-1 text-sm text-gray-500">This conversation has no file history snapshots.
+                                </p>
+                            </div>
+
+                            <div x-show="checkpoints.length > 0" class="overflow-hidden bg-white shadow sm:rounded-md">
+                                <ul role="list" class="divide-y divide-gray-100">
+                                    <template x-for="(ckpt, ckptIndex) in checkpoints" :key="ckpt.messageId">
+                                        <li class="px-4 py-4 sm:px-6 hover:bg-gray-50">
+                                            <div class="flex items-center justify-between">
+                                                <div class="truncate">
+                                                    <div class="flex text-sm">
+                                                        <p class="truncate font-medium text-indigo-600"
+                                                            x-text="formatRelativeTime(ckpt.timestamp)"></p>
+                                                        <span class="mx-2 text-gray-400">·</span>
+                                                        <p class="text-gray-500"
+                                                            x-text="new Date(ckpt.timestamp).toLocaleString()"></p>
+                                                    </div>
+                                                    <div class="mt-2 flex">
+                                                        <div class="flex items-center text-sm text-gray-500">
+                                                            <p x-text="ckpt.fileCount + ' files tracked'"></p>
+                                                            <span
+                                                                x-show="getSelectedFilesForCheckpoint(ckpt.messageId).length > 0"
+                                                                class="ml-2 text-indigo-600">
+                                                                (<span
+                                                                    x-text="getSelectedFilesForCheckpoint(ckpt.messageId).length"></span>
+                                                                selected)
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="ml-2 flex shrink-0 gap-2">
+                                                    <button @click="exportCheckpoint(ckpt)" :disabled="exporting"
+                                                        class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+                                                        title="Export checkpoint">
+                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor"
+                                                            viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round"
+                                                                stroke-width="2"
+                                                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4">
+                                                            </path>
+                                                        </svg>
+                                                    </button>
+                                                    <button @click="toggleAllFiles(ckpt)"
+                                                        class="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                                                        x-text="allFilesSelected(ckpt) ? 'Deselect All' : 'Select All'">
+                                                    </button>
+                                                    <button @click="restoreCheckpoint(ckpt)"
+                                                        class="inline-flex items-center rounded-md bg-indigo-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+                                                        Restore
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <!-- File list with checkboxes -->
+                                            <div class="mt-3 pl-4 space-y-1">
+                                                <template x-for="(fileInfo, filePath) in ckpt.files" :key="filePath">
+                                                    <div
+                                                        class="flex items-center justify-between text-sm group hover:bg-gray-100 rounded px-2 py-1 -mx-2">
+                                                        <div class="flex items-center min-w-0">
+                                                            <input type="checkbox" :id="ckpt.messageId + '-' + filePath"
+                                                                :checked="isFileSelected(ckpt.messageId, filePath)"
+                                                                @change="toggleFileSelection(ckpt.messageId, filePath)"
+                                                                class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600">
+                                                            <label :for="ckpt.messageId + '-' + filePath"
+                                                                class="ml-2 font-mono text-gray-600 truncate cursor-pointer"
+                                                                x-text="filePath">
+                                                            </label>
+                                                            <span x-show="!fileInfo.backupFileName"
+                                                                class="ml-2 text-xs text-yellow-600"
+                                                                title="No backup available">(pending)</span>
+                                                        </div>
+                                                        <button @click.stop="previewFile(ckpt, filePath)"
+                                                            x-show="fileInfo.backupFileName"
+                                                            class="opacity-0 group-hover:opacity-100 text-indigo-600 hover:text-indigo-900 text-xs font-medium ml-2 shrink-0">
+                                                            Preview
+                                                        </button>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- File Preview Modal -->
+        <div x-show="previewModal.show" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title"
+            role="dialog" aria-modal="true">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <!-- Background overlay -->
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="closePreview()"></div>
+
+                <!-- Modal panel -->
+                <div
+                    class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-4xl">
+                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900 truncate" x-text="previewModal.filePath">
+                            </h3>
+                            <button @click="closePreview()" class="text-gray-400 hover:text-gray-500">
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="file-preview-content bg-gray-50 rounded-lg p-4">
+                            <div x-show="previewModal.loading" class="text-center py-8">
+                                <div
+                                    class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600">
+                                </div>
+                                <p class="mt-2 text-sm text-gray-500">Loading file...</p>
+                            </div>
+                            <div x-show="previewModal.error" class="text-center py-8">
+                                <p class="text-red-600" x-text="previewModal.error"></p>
+                            </div>
+                            <pre x-show="!previewModal.loading && !previewModal.error"
+                                class="text-sm"><code x-text="previewModal.content"></code></pre>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                        <button type="button" @click="closePreview()"
+                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Checkpoint Import Modal -->
+        <div x-show="importCheckpointModal.show" x-cloak class="fixed inset-0 z-50 overflow-y-auto"
+            aria-labelledby="import-modal-title" role="dialog" aria-modal="true">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <!-- Background overlay -->
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+                    @click="closeImportCheckpointModal()"></div>
+
+                <!-- Modal panel -->
+                <div
+                    class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">Import Checkpoint</h3>
+                            <button @click="closeImportCheckpointModal()" class="text-gray-400 hover:text-gray-500">
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <p class="text-sm text-gray-600">
+                                    This checkpoint contains <strong x-text="importCheckpointModal.fileCount"></strong>
+                                    file(s).
+                                </p>
+                            </div>
+                            <div>
+                                <label for="import-target-dir" class="block text-sm font-medium text-gray-700">Target
+                                    Directory</label>
+                                <input type="text" x-model="importCheckpointModal.targetDir" id="import-target-dir"
+                                    class="mt-1 block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+                                    placeholder="Enter target directory path">
+                                <p class="mt-1 text-xs text-gray-500">Files will be restored relative to this
+                                    directory.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 gap-2">
+                        <button type="button" @click="confirmImportCheckpoint()"
+                            :disabled="!importCheckpointModal.targetDir || importing"
+                            class="inline-flex w-full justify-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto">
+                            <span x-text="importing ? 'Importing...' : 'Import Files'"></span>
+                        </button>
+                        <button type="button" @click="closeImportCheckpointModal()"
+                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            function app() {
+                return {
+                    projects: [],
+                    selectedProject: null,
+                    conversations: [],
+                    selectedConversation: null,
+                    checkpoints: [],
+                    targetDir: '',
+                    defaultCwd: '',
+                    projectSearch: '',
+                    selectedFiles: {}, // { checkpointMessageId: Set<filePath> }
+                    previewModal: {
+                        show: false,
+                        filePath: '',
+                        content: '',
+                        loading: false,
+                        error: null
+                    },
+                    pathAliases: {}, // { alias: prefix } e.g., { '@work': '/mnt/c/Users/Karim/Documents/work/' }
+                    showHome: true,
+                    exporting: false,
+                    importing: false,
+                    importMergeMode: true,
+                    importCheckpointModal: {
+                        show: false,
+                        data: null,
+                        targetDir: '',
+                        fileCount: 0
+                    },
+                    toasts: [],
+                    toastIdCounter: 0,
+
+                    get headerTitle() {
+                        if (this.selectedConversation) return `Conversation: ${this.selectedConversation.id}`;
+                        if (this.selectedProject) return `Project: ${this.selectedProject.name}`;
+                        if (this.showHome) return 'Dashboard';
+                        return 'Dashboard';
+                    },
+
+                    get filteredProjects() {
+                        if (!this.projectSearch) return this.projects;
+                        const search = this.projectSearch.toLowerCase();
+                        return this.projects.filter(p =>
+                            p.name.toLowerCase().includes(search) ||
+                            p.id.toLowerCase().includes(search)
+                        );
+                    },
+
+                    get groupedProjects() {
+                        const projects = this.filteredProjects;
+                        if (projects.length === 0) return {};
+
+                        // Detect common path prefixes and create aliases
+                        const aliases = this.detectPathAliases(projects.map(p => p.name));
+                        this.pathAliases = aliases;
+
+                        // Group projects by their alias
+                        const groups = {};
+                        for (const project of projects) {
+                            let matched = false;
+                            for (const [alias, prefix] of Object.entries(aliases)) {
+                                if (project.name.startsWith(prefix)) {
+                                    if (!groups[alias]) {
+                                        groups[alias] = [];
+                                    }
+                                    // Remove leading slash from display path
+                                    let displayPath = project.name.slice(prefix.length);
+                                    displayPath = displayPath.replace(/^\/+/, '') || project.name.split('/').pop();
+                                    groups[alias].push({
+                                        ...project,
+                                        displayPath,
+                                        fullPath: project.name
+                                    });
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            // If no alias matched, put in ungrouped
+                            if (!matched) {
+                                if (!groups['']) {
+                                    groups[''] = [];
+                                }
+                                groups[''].push({
+                                    ...project,
+                                    displayPath: project.name,
+                                    fullPath: project.name
+                                });
+                            }
+                        }
+
+                        return groups;
+                    },
+
+                    // Toast notification system
+                    showToast(message, type = 'info', duration = 5000) {
+                        const id = ++this.toastIdCounter;
+                        const toast = { id, message, type, visible: true };
+                        this.toasts.push(toast);
+
+                        // Auto-dismiss after duration
+                        if (duration > 0) {
+                            setTimeout(() => {
+                                this.dismissToast(id);
+                            }, duration);
+                        }
+                    },
+
+                    dismissToast(id) {
+                        const toast = this.toasts.find(t => t.id === id);
+                        if (toast) {
+                            toast.visible = false;
+                            // Remove from array after animation
+                            setTimeout(() => {
+                                this.toasts = this.toasts.filter(t => t.id !== id);
+                            }, 300);
+                        }
+                    },
+
+                    // Navigation
+                    goHome() {
+                        this.selectedProject = null;
+                        this.selectedConversation = null;
+                        this.conversations = [];
+                        this.checkpoints = [];
+                        this.selectedFiles = {};
+                        this.showHome = true;
+                    },
+
+                    detectPathAliases(paths) {
+                        if (paths.length === 0) return {};
+
+                        // Count occurrences of each path prefix
+                        const prefixCounts = {};
+                        for (const path of paths) {
+                            const parts = path.split('/').filter(Boolean);
+                            // Build progressively longer prefixes
+                            let prefix = '';
+                            for (let i = 0; i < parts.length - 1; i++) {
+                                prefix += '/' + parts[i];
+                                if (!prefixCounts[prefix]) {
+                                    prefixCounts[prefix] = { count: 0, paths: [] };
+                                }
+                                prefixCounts[prefix].count++;
+                                prefixCounts[prefix].paths.push(path);
+                            }
+                        }
+
+                        // Find the best prefixes (longest that have 2+ paths)
+                        const aliases = {};
+                        const usedPaths = new Set();
+
+                        // Sort prefixes by length (longest first) then by count
+                        const sortedPrefixes = Object.entries(prefixCounts)
+                            .filter(([_, data]) => data.count >= 2)
+                            .sort((a, b) => {
+                                // Prefer longer prefixes
+                                const lenDiff = b[0].length - a[0].length;
+                                if (lenDiff !== 0) return lenDiff;
+                                // Then by count
+                                return b[1].count - a[1].count;
+                            });
+
+                        for (const [prefix, data] of sortedPrefixes) {
+                            // Check if this prefix's paths haven't been claimed by a longer prefix
+                            const unclaimed = data.paths.filter(p => !usedPaths.has(p));
+                            if (unclaimed.length >= 2) {
+                                // Create a meaningful alias from the prefix
+                                const alias = this.createAlias(prefix);
+                                aliases[alias] = prefix + '/';
+                                // Mark these paths as used
+                                unclaimed.forEach(p => usedPaths.add(p));
+                            }
+                        }
+
+                        return aliases;
+                    },
+
+                    createAlias(prefix) {
+                        const parts = prefix.split('/').filter(Boolean);
+                        // Look for meaningful directory names to use as alias
+                        const meaningfulNames = ['work', 'home', 'projects', 'src', 'dev', 'code', 'Documents', 'repos'];
+
+                        // Try to find a meaningful name in the path
+                        for (let i = parts.length - 1; i >= 0; i--) {
+                            const part = parts[i];
+                            if (meaningfulNames.some(n => part.toLowerCase().includes(n.toLowerCase()))) {
+                                return '@' + part.toLowerCase();
+                            }
+                        }
+
+                        // If path contains a user directory pattern, use that
+                        const userMatch = prefix.match(/\/(?:home|Users)\/([^\/]+)/i);
+                        if (userMatch) {
+                            return '@' + userMatch[1].toLowerCase();
+                        }
+
+                        // Default: use last meaningful part of path
+                        const lastPart = parts[parts.length - 1];
+                        return '@' + lastPart.toLowerCase();
+                    },
+
+                    formatRelativeTime(date) {
+                        const now = new Date();
+                        const then = new Date(date);
+                        const diffMs = now - then;
+
+                        if (diffMs < 0) return 'in the future';
+
+                        const seconds = Math.floor(diffMs / 1000);
+                        const minutes = Math.floor(seconds / 60);
+                        const hours = Math.floor(minutes / 60);
+                        const days = Math.floor(hours / 24);
+                        const weeks = Math.floor(days / 7);
+                        const months = Math.floor(days / 30);
+                        const years = Math.floor(days / 365);
+
+                        if (seconds < 60) return 'just now';
+                        if (minutes < 60) return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+                        if (hours < 24) return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+                        if (days < 7) return days === 1 ? '1 day ago' : `${days} days ago`;
+                        if (weeks < 4) return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
+                        if (months < 12) return months === 1 ? '1 month ago' : `${months} months ago`;
+                        return years === 1 ? '1 year ago' : `${years} years ago`;
+                    },
+
+                    async init() {
+                        try {
+                            const res = await fetch('/api/projects');
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            this.projects = await res.json();
+                        } catch (e) {
+                            console.error('Failed to load projects:', e);
+                            this.showToast('Failed to load projects: ' + e.message, 'error');
+                        }
+                    },
+
+                    async selectProject(project) {
+                        this.showHome = false;
+                        this.selectedProject = project;
+                        this.selectedConversation = null;
+                        this.selectedFiles = {};
+                        try {
+                            const res = await fetch(`/api/projects/${project.id}/conversations`);
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            this.conversations = await res.json();
+                        } catch (e) {
+                            console.error('Failed to load conversations:', e);
+                            this.showToast('Failed to load conversations: ' + e.message, 'error');
+                            this.conversations = [];
+                        }
+                    },
+
+                    async selectConversation(conv) {
+                        this.selectedConversation = conv;
+                        this.selectedFiles = {};
+                        try {
+                            const res = await fetch(`/api/conversations/${conv.id}/checkpoints?projectId=${this.selectedProject.id}`);
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            const data = await res.json();
+                            this.checkpoints = data.checkpoints.reverse(); // Newest first
+                            this.defaultCwd = data.cwd;
+                            this.targetDir = data.cwd;
+                        } catch (e) {
+                            console.error('Failed to load checkpoints:', e);
+                            this.showToast('Failed to load checkpoints: ' + e.message, 'error');
+                            this.checkpoints = [];
+                        }
+                    },
+
+                    // File selection methods
+                    isFileSelected(checkpointId, filePath) {
+                        return this.selectedFiles[checkpointId]?.has(filePath) || false;
+                    },
+
+                    toggleFileSelection(checkpointId, filePath) {
+                        if (!this.selectedFiles[checkpointId]) {
+                            this.selectedFiles[checkpointId] = new Set();
+                        }
+                        if (this.selectedFiles[checkpointId].has(filePath)) {
+                            this.selectedFiles[checkpointId].delete(filePath);
+                        } else {
+                            this.selectedFiles[checkpointId].add(filePath);
+                        }
+                        // Force reactivity
+                        this.selectedFiles = { ...this.selectedFiles };
+                    },
+
+                    getSelectedFilesForCheckpoint(checkpointId) {
+                        return Array.from(this.selectedFiles[checkpointId] || []);
+                    },
+
+                    allFilesSelected(ckpt) {
+                        const files = Object.keys(ckpt.files);
+                        const selected = this.selectedFiles[ckpt.messageId];
+                        return selected && files.length > 0 && files.every(f => selected.has(f));
+                    },
+
+                    toggleAllFiles(ckpt) {
+                        const files = Object.keys(ckpt.files);
+                        if (this.allFilesSelected(ckpt)) {
+                            // Deselect all
+                            this.selectedFiles[ckpt.messageId] = new Set();
+                        } else {
+                            // Select all
+                            this.selectedFiles[ckpt.messageId] = new Set(files);
+                        }
+                        this.selectedFiles = { ...this.selectedFiles };
+                    },
+
+                    // File preview
+                    async previewFile(ckpt, filePath) {
+                        this.previewModal = {
+                            show: true,
+                            filePath,
+                            content: '',
+                            loading: true,
+                            error: null
+                        };
+
+                        try {
+                            const params = new URLSearchParams({
+                                projectId: this.selectedProject.id,
+                                conversationId: this.selectedConversation.id,
+                                checkpointMessageId: ckpt.messageId,
+                                filePath
+                            });
+                            const res = await fetch(`/api/blob?${params}`);
+
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+
+                            this.previewModal.content = await res.text();
+                            this.previewModal.loading = false;
+                        } catch (e) {
+                            this.previewModal.loading = false;
+                            this.previewModal.error = e.message;
+                        }
+                    },
+
+                    closePreview() {
+                        this.previewModal.show = false;
+                    },
+
+                    async restoreCheckpoint(ckpt) {
+                        const selectedFilesList = this.getSelectedFilesForCheckpoint(ckpt.messageId);
+
+                        try {
+                            const body = {
+                                projectId: this.selectedProject.id,
+                                conversationId: this.selectedConversation.id,
+                                checkpointMessageId: ckpt.messageId,
+                                targetDir: this.targetDir
+                            };
+
+                            // Only include files if some are selected (selective restore)
+                            if (selectedFilesList.length > 0) {
+                                body.files = selectedFilesList;
+                            }
+
+                            const res = await fetch('/api/restore', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(body)
+                            });
+
+                            const result = await res.json();
+
+                            if (result.success) {
+                                const fileWord = result.count === 1 ? 'file' : 'files';
+                                this.showToast(`Successfully restored ${result.count} ${fileWord}!`, 'success');
+                            } else {
+                                throw new Error(result.error || 'Restore failed');
+                            }
+                        } catch (e) {
+                            this.showToast('Restore failed: ' + e.message, 'error');
+                        }
+                    },
+
+                    // Export functions
+                    async exportGlobal() {
+                        this.exporting = true;
+                        try {
+                            const res = await fetch('/api/export/global');
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            await this.downloadResponse(res, 'claude-backup.json');
+                            this.showToast('Export completed successfully!', 'success');
+                        } catch (e) {
+                            this.showToast('Export failed: ' + e.message, 'error');
+                        } finally {
+                            this.exporting = false;
+                        }
+                    },
+
+                    async exportProject() {
+                        if (!this.selectedProject) return;
+                        this.exporting = true;
+                        try {
+                            const res = await fetch(`/api/export/projects/${this.selectedProject.id}`);
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            await this.downloadResponse(res, `claude-project-${this.selectedProject.id.slice(0, 20)}.json`);
+                            this.showToast('Project exported successfully!', 'success');
+                        } catch (e) {
+                            this.showToast('Export failed: ' + e.message, 'error');
+                        } finally {
+                            this.exporting = false;
+                        }
+                    },
+
+                    async exportConversation() {
+                        if (!this.selectedProject || !this.selectedConversation) return;
+                        this.exporting = true;
+                        try {
+                            const res = await fetch(`/api/export/projects/${this.selectedProject.id}/conversations/${this.selectedConversation.id}`);
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            await this.downloadResponse(res, `claude-conversation-${this.selectedConversation.id.slice(0, 8)}.json`);
+                            this.showToast('Conversation exported successfully!', 'success');
+                        } catch (e) {
+                            this.showToast('Export failed: ' + e.message, 'error');
+                        } finally {
+                            this.exporting = false;
+                        }
+                    },
+
+                    async exportCheckpoint(ckpt) {
+                        if (!this.selectedProject || !this.selectedConversation) return;
+                        this.exporting = true;
+                        try {
+                            const params = new URLSearchParams({
+                                projectId: this.selectedProject.id,
+                                conversationId: this.selectedConversation.id,
+                                checkpointMessageId: ckpt.messageId
+                            });
+                            const res = await fetch(`/api/export/checkpoint?${params}`);
+                            if (!res.ok) {
+                                const data = await res.json().catch(() => ({}));
+                                throw new Error(data.error || `HTTP ${res.status}`);
+                            }
+                            await this.downloadResponse(res, `claude-checkpoint-${ckpt.messageId.slice(0, 8)}.json`);
+                            this.showToast('Checkpoint exported successfully!', 'success');
+                        } catch (e) {
+                            this.showToast('Export failed: ' + e.message, 'error');
+                        } finally {
+                            this.exporting = false;
+                        }
+                    },
+
+                    async downloadResponse(response, defaultFilename) {
+                        const blob = await response.blob();
+                        const contentDisposition = response.headers.get('Content-Disposition');
+                        let filename = defaultFilename;
+                        if (contentDisposition) {
+                            const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                            if (match) filename = match[1];
+                        }
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    },
+
+                    // Import functions
+                    async handleGlobalImportFile(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+
+                        this.importing = true;
+                        try {
+                            const content = await file.text();
+                            const data = JSON.parse(content);
+
+                            if (data.type !== 'global') {
+                                throw new Error(`Expected global export, got: ${data.type}`);
+                            }
+
+                            const res = await fetch('/api/import/global', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    data,
+                                    strategy: this.importMergeMode ? 'merge' : 'replace'
+                                })
+                            });
+
+                            const result = await res.json();
+
+                            if (result.success) {
+                                this.showToast(result.message || `Imported ${result.filesImported} files!`, 'success');
+                                // Refresh projects list
+                                await this.init();
+                            } else {
+                                throw new Error(result.error || 'Import failed');
+                            }
+                        } catch (e) {
+                            this.showToast('Import failed: ' + e.message, 'error');
+                        } finally {
+                            this.importing = false;
+                            event.target.value = ''; // Reset file input
+                        }
+                    },
+
+                    async handleConversationImportFile(event) {
+                        const file = event.target.files[0];
+                        if (!file || !this.selectedProject) return;
+
+                        this.importing = true;
+                        try {
+                            const content = await file.text();
+                            const data = JSON.parse(content);
+
+                            if (data.type !== 'conversation') {
+                                throw new Error(`Expected conversation export, got: ${data.type}`);
+                            }
+
+                            const res = await fetch(`/api/import/projects/${this.selectedProject.id}/conversations`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ data })
+                            });
+
+                            const result = await res.json();
+
+                            if (result.success) {
+                                this.showToast(result.message || `Imported conversation with ${result.filesImported} files!`, 'success');
+                                // Refresh conversations list
+                                await this.selectProject(this.selectedProject);
+                            } else {
+                                throw new Error(result.error || 'Import failed');
+                            }
+                        } catch (e) {
+                            this.showToast('Import failed: ' + e.message, 'error');
+                        } finally {
+                            this.importing = false;
+                            event.target.value = ''; // Reset file input
+                        }
+                    },
+
+                    async handleCheckpointImportFile(event) {
+                        const file = event.target.files[0];
+                        if (!file) return;
+
+                        try {
+                            const content = await file.text();
+                            const data = JSON.parse(content);
+
+                            if (data.type !== 'checkpoint') {
+                                throw new Error(`Expected checkpoint export, got: ${data.type}`);
+                            }
+
+                            // Show modal to get target directory
+                            this.importCheckpointModal = {
+                                show: true,
+                                data,
+                                targetDir: this.targetDir || this.defaultCwd || '',
+                                fileCount: data.files ? data.files.length : 0
+                            };
+                        } catch (e) {
+                            this.showToast('Failed to read file: ' + e.message, 'error');
+                        } finally {
+                            event.target.value = ''; // Reset file input
+                        }
+                    },
+
+                    closeImportCheckpointModal() {
+                        this.importCheckpointModal = {
+                            show: false,
+                            data: null,
+                            targetDir: '',
+                            fileCount: 0
+                        };
+                    },
+
+                    async confirmImportCheckpoint() {
+                        if (!this.importCheckpointModal.data || !this.importCheckpointModal.targetDir) return;
+
+                        this.importing = true;
+                        try {
+                            const res = await fetch('/api/import/checkpoint', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    data: this.importCheckpointModal.data,
+                                    targetDir: this.importCheckpointModal.targetDir
+                                })
+                            });
+
+                            const result = await res.json();
+
+                            if (result.success) {
+                                this.showToast(result.message || `Restored ${result.filesImported} files!`, 'success');
+                                this.closeImportCheckpointModal();
+                            } else {
+                                throw new Error(result.error || 'Import failed');
+                            }
+                        } catch (e) {
+                            this.showToast('Import failed: ' + e.message, 'error');
+                        } finally {
+                            this.importing = false;
+                        }
+                    }
+                }
+            }
+        </script>
+    </body>
+
+</html>

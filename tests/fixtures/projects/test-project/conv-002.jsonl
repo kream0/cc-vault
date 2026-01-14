@@ -1,0 +1,2 @@
+{"type":"file-history-snapshot","messageId":"msg-001","snapshot":{"messageId":"msg-001","trackedFileBackups":{},"timestamp":"2025-01-11T10:00:00.000Z"},"isSnapshotUpdate":false}
+{"parentUuid":null,"cwd":"/test/project2","sessionId":"conv-002","type":"user","message":{"role":"user","content":"Another test"},"uuid":"msg-001","timestamp":"2025-01-11T10:00:00.000Z","gitBranch":"feature/new-feature"}
