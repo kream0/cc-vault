@@ -62,16 +62,21 @@ export function resolveRestorePath(
   targetDir: string,
   projectCwd: string
 ): string {
+  // Normalize paths for comparison (handle Windows case-insensitivity and path separators)
+  const normalizedFilePath = resolve(filePath).toLowerCase();
+  const normalizedCwd = projectCwd ? resolve(projectCwd).toLowerCase() : "";
+  
   // Check for absolute paths (Unix: starts with /, Windows: C:\, D:\, etc.)
   const isAbsolutePath = isAbsolute(filePath) || filePath.startsWith("/");
-  
+
   if (isAbsolutePath) {
     // Absolute path - rebase relative to targetDir
-    if (projectCwd && filePath.startsWith(projectCwd)) {
-      const rel = filePath.slice(projectCwd.length).replace(/^[\/\\]/, "");
+    if (normalizedCwd && normalizedFilePath.startsWith(normalizedCwd)) {
+      // File is within project CWD - make it relative
+      const rel = filePath.slice(projectCwd.length).replace(/^[\/\\]+/, "");
       return join(targetDir, rel);
     } else {
-      // Strip leading slash or drive letter to make relative
+      // File is outside project CWD - strip drive letter and leading slashes
       const relativePath = filePath
         .replace(/^[a-zA-Z]:/, "") // Remove Windows drive letter
         .replace(/^[\/\\]+/, "");  // Remove leading slashes
