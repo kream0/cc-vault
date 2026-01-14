@@ -1,10 +1,11 @@
 # Claude Code Vault
 
-A Web UI for browsing, exporting, importing, and restoring file history from Claude Code's local data (`~/.claude`).
+A Web UI for browsing, exporting, importing, and restoring file history from Claude Code's local data (`~/.claude` on macOS/Linux or `%USERPROFILE%\.claude` on Windows).
 
 ![Claude Code Vault](https://img.shields.io/badge/Claude-Code%20Vault-6366f1?style=for-the-badge)
 ![Bun](https://img.shields.io/badge/Bun-1.0+-black?style=for-the-badge&logo=bun)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3+-blue?style=for-the-badge&logo=typescript)
+![Cross Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-green?style=for-the-badge)
 
 ## Features
 
@@ -15,6 +16,7 @@ A Web UI for browsing, exporting, importing, and restoring file history from Cla
 - **Export Data** – Export global backups, projects, conversations, or checkpoints
 - **Import Data** – Restore from previously exported archives
 - **Single Binary** – Compile to a standalone executable
+- **Cross-Platform** – Works on Windows, macOS, and Linux
 
 ## Quick Start
 
@@ -56,44 +58,44 @@ Open http://localhost:3000 in your browser.
 
 ### CLI Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--port` | Server port | `3000` |
+| Option          | Description                   | Default     |
+|-----------------|-------------------------------|-------------|
+| `--port`        | Server port                   | `3000`      |
 | `--claude-root` | Path to Claude data directory | `~/.claude` |
 
 ## API Endpoints
 
 ### Browse
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/projects` | List all projects |
-| `GET` | `/api/projects/:id/conversations` | List conversations for a project |
-| `GET` | `/api/conversations/:id/checkpoints` | List restore points for a conversation |
-| `GET` | `/api/blob` | Preview file content |
+| Method | Endpoint                             | Description                            |
+|--------|--------------------------------------|----------------------------------------|
+| `GET`  | `/api/projects`                      | List all projects                      |
+| `GET`  | `/api/projects/:id/conversations`    | List conversations for a project       |
+| `GET`  | `/api/conversations/:id/checkpoints` | List restore points for a conversation |
+| `GET`  | `/api/blob`                          | Preview file content                   |
 
 ### Restore
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
+| Method | Endpoint       | Description                     |
+|--------|----------------|---------------------------------|
 | `POST` | `/api/restore` | Restore files from a checkpoint |
 
 ### Export
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/export/global` | Export entire ~/.claude folder |
-| `GET` | `/api/export/projects/:id` | Export a project |
-| `GET` | `/api/export/projects/:projectId/conversations/:conversationId` | Export a conversation |
-| `GET` | `/api/export/checkpoint` | Export a checkpoint |
+| Method | Endpoint                                                        | Description                    |
+|--------|-----------------------------------------------------------------|--------------------------------|
+| `GET`  | `/api/export/global`                                            | Export entire ~/.claude folder |
+| `GET`  | `/api/export/projects/:id`                                      | Export a project               |
+| `GET`  | `/api/export/projects/:projectId/conversations/:conversationId` | Export a conversation          |
+| `GET`  | `/api/export/checkpoint`                                        | Export a checkpoint            |
 
 ### Import
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/import/global` | Import a global backup |
-| `POST` | `/api/import/projects/:projectId/conversations` | Import a conversation |
-| `POST` | `/api/import/checkpoint` | Import/restore a checkpoint |
+| Method | Endpoint                                        | Description                 |
+|--------|-------------------------------------------------|-----------------------------|
+| `POST` | `/api/import/global`                            | Import a global backup      |
+| `POST` | `/api/import/projects/:projectId/conversations` | Import a conversation       |
+| `POST` | `/api/import/checkpoint`                        | Import/restore a checkpoint |
 
 ## Project Structure
 

@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { join, resolve, isAbsolute } from "path";
 import { homedir } from "os";
 
 /**
@@ -21,12 +21,14 @@ export function hasPathTraversal(targetPath: string): boolean {
 
 /**
  * Checks if the path is inside the ~/.claude directory
+ * Works on both Windows and Unix systems
  */
 export function isClaudePath(targetPath: string): boolean {
   const expanded = expandPath(targetPath);
   const claudeDir = join(homedir(), ".claude");
-  const normalized = resolve(expanded);
-  return normalized.startsWith(claudeDir);
+  const normalized = resolve(expanded).toLowerCase();
+  const normalizedClaudeDir = resolve(claudeDir).toLowerCase();
+  return normalized.startsWith(normalizedClaudeDir);
 }
 
 /**
@@ -53,21 +55,27 @@ export function validateTargetDir(targetDir: string | undefined | null): void {
 
 /**
  * Safely resolves a file path relative to a target directory.
- * Handles both absolute and relative source paths.
+ * Handles both absolute and relative source paths on Windows and Unix.
  */
 export function resolveRestorePath(
   filePath: string,
   targetDir: string,
   projectCwd: string
 ): string {
-  if (filePath.startsWith("/")) {
+  // Check for absolute paths (Unix: starts with /, Windows: C:\, D:\, etc.)
+  const isAbsolutePath = isAbsolute(filePath) || filePath.startsWith("/");
+  
+  if (isAbsolutePath) {
     // Absolute path - rebase relative to targetDir
     if (projectCwd && filePath.startsWith(projectCwd)) {
-      const rel = filePath.slice(projectCwd.length).replace(/^\//, "");
+      const rel = filePath.slice(projectCwd.length).replace(/^[\/\\]/, "");
       return join(targetDir, rel);
     } else {
-      // Strip leading slash to make relative
-      return join(targetDir, filePath.replace(/^\//, ""));
+      // Strip leading slash or drive letter to make relative
+      const relativePath = filePath
+        .replace(/^[a-zA-Z]:/, "") // Remove Windows drive letter
+        .replace(/^[\/\\]+/, "");  // Remove leading slashes
+      return join(targetDir, relativePath);
     }
   } else {
     // Relative path - just join

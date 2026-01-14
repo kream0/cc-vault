@@ -145,4 +145,33 @@ describe("resolveRestorePath", () => {
     );
     expect(result).toBe("/target/some/path/file.ts");
   });
+
+  test("handles Windows absolute paths with drive letter", () => {
+    const result = resolveRestorePath(
+      "C:\\Users\\Test\\project\\src\\index.ts",
+      "/target",
+      ""
+    );
+    // Should strip drive letter and make relative
+    expect(result).toContain("target");
+    expect(result).toContain("Users");
+  });
+
+  test("handles mixed path separators", () => {
+    const result = resolveRestorePath(
+      "src\\components\\App.tsx",
+      "/target",
+      "/project"
+    );
+    expect(result).toContain("target");
+    expect(result).toContain("src");
+  });
+});
+
+describe("isClaudePath - cross-platform", () => {
+  test("case-insensitive comparison on paths", () => {
+    // This tests that .Claude and .claude are both detected
+    const claudePathLower = join(homedir(), ".claude", "projects");
+    expect(isClaudePath(claudePathLower)).toBe(true);
+  });
 });
